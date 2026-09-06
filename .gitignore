@@ -1,0 +1,9 @@
+.cache/
+.embuild/
+.esp/
+.pio/
+compile_commands.json
+sdkconfig
+sdkconfig.old
+target/
+.DS_Store

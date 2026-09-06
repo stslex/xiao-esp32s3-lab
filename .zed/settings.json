@@ -1,0 +1,18 @@
+{
+  "languages": {
+    "Rust": {
+      "format_on_save": "on"
+    }
+  },
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "checkOnSave": false,
+        "cargo": {
+          "target": "xtensa-esp32s3-espidf",
+          "allTargets": false
+        }
+      }
+    }
+  }
+}

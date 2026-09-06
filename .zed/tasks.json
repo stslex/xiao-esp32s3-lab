@@ -1,0 +1,47 @@
+[
+  {
+    "label": "Rust: Build",
+    "command": "/bin/zsh",
+    "args": [
+      "-lc",
+      "source .esp/export-esp.sh && export PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\" && cargo build"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "save": "all",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Rust: Flash + Monitor",
+    "command": "/bin/zsh",
+    "args": [
+      "-lc",
+      "source .esp/export-esp.sh && export PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\" && cargo run"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "save": "all",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Rust: Serial Monitor",
+    "command": "/bin/zsh",
+    "args": ["-lc", "export PATH=\"/opt/homebrew/bin:$PATH\" && espflash monitor"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "save": "all",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Rust: Format",
+    "command": "/bin/zsh",
+    "args": [
+      "-lc",
+      "export PATH=\"/opt/homebrew/opt/rustup/bin:$PATH\" && cargo fmt --all"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "save": "all",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  }
+]
