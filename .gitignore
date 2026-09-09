@@ -7,3 +7,6 @@ sdkconfig
 sdkconfig.old
 target/
 .DS_Store
+captures/
+__pycache__/
+tools/host-check/target/
