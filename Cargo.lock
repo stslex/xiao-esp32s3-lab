@@ -1648,13 +1648,14 @@ dependencies = [
 
 [[package]]
 name = "xiao-esp32s3-camera"
-version = "0.1.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "embedded-svc",
  "embuild",
  "esp-idf-svc",
  "log",
+ "serde_json",
 ]
 
 [[package]]

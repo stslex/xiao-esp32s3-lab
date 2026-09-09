@@ -1,6 +1,6 @@
 [package]
 name = "xiao-esp32s3-camera"
-version = "0.1.0"
+version = "0.7.0"
 edition = "2021"
 resolver = "2"
 rust-version = "1.82"
@@ -21,6 +21,7 @@ anyhow = "1"
 embedded-svc = "0.29"
 esp-idf-svc = "0.52.1"
 log = "0.4"
+serde_json = "1"
 
 [build-dependencies]
 embuild = "0.33"

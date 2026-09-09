@@ -8,8 +8,11 @@ CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_USE_MALLOC=y
 CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
 
-# Camera frames live in PSRAM; a single QVGA JPEG buffer keeps the first build
-# deliberately small and stable.
+# Reserve one bounded JPEG buffer for runtime resolution changes up to QXGA.
+# The small QVGA-derived automatic buffer cannot hold high-resolution JPEGs.
+CONFIG_CAMERA_JPEG_MODE_FRAME_SIZE_AUTO=n
+CONFIG_CAMERA_JPEG_MODE_FRAME_SIZE_CUSTOM=y
+CONFIG_CAMERA_JPEG_MODE_FRAME_SIZE=1048576
 CONFIG_CAMERA_PSRAM_DMA=n
 
 # esp-idf-hal 0.46 uses ESP-IDF's legacy I2C API. Keep the camera SCCB bus on

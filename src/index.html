@@ -7,39 +7,481 @@
     <style>
       :root { color-scheme: dark; font-family: system-ui, sans-serif; }
       body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101318; }
-      main { width: min(94vw, 720px); text-align: center; }
+      main { width: min(94vw, 720px); text-align: center; padding: 20px 0; }
       h1 { font-size: 1.35rem; font-weight: 650; }
       img { width: 100%; border-radius: 14px; background: #000; box-shadow: 0 12px 40px #0008; }
       p { color: #aeb8c7; }
+      section { background: #191f28; border: 1px solid #303946; border-radius: 14px; margin: 20px 0; padding: 20px; }
+      h2 { margin: 0 0 16px; font-size: 1.1rem; }
+      .display { display: flex; gap: 24px; align-items: center; text-align: left; flex-wrap: wrap; justify-content: center; }
+      canvas { width: 180px; height: 240px; max-width: 100%; background: #000; border: 1px solid #394351; image-rendering: pixelated; }
+      .controls { flex: 1; min-width: 210px; }
+      button, input { font: inherit; max-width: 100%; }
+      button { border: 1px solid #475567; color: #e5edf5; background: #283444; border-radius: 7px; padding: 9px 12px; cursor: pointer; margin: 5px 5px 5px 0; }
+      button:disabled { opacity: .4; cursor: default; }
+      button.primary { background: #237745; border-color: #389c5f; }
+      label { display: block; color: #aeb8c7; margin: 16px 0 8px; }
+      small { color: #8996a7; }
+      .camera-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 22px; text-align: left; margin: 12px 0 18px; }
+      .camera-settings label { margin: 0; font-size: .9rem; }
+      .camera-settings select { display: block; width: 100%; margin-top: 8px; padding: 9px; background: #101720; color: #e5edf5; border: 1px solid #475567; border-radius: 6px; font: inherit; }
+      .camera-settings input[type=range] { display: block; width: 100%; margin: 14px 0; accent-color: #50bc78; }
+      .camera-settings .checks { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+      a { color: #85c8ff; }
+      input[type=url], input[type=number] { box-sizing: border-box; width: 100%; padding: 9px; border: 1px solid #475567; border-radius: 6px; background: #101720; color: #e5edf5; }
+      output { float: right; color: #e5edf5; }
+      @media (max-width: 480px) { .camera-settings { grid-template-columns: 1fr; } section { padding: 15px; } }
     </style>
   </head>
   <body>
     <main>
       <h1>XIAO ESP32-S3 Sense · Rust</h1>
-      <img id="camera" alt="Camera image">
-      <p id="status">Connecting to the camera…</p>
+      <section>
+        <h2>TFT display</h2>
+        <div class="display">
+          <div><canvas id="preview" width="240" height="320" aria-label="Display frame preview"></canvas><br><small id="preview-label">Last sent frame</small></div>
+          <div class="controls">
+            <button id="test" disabled>Test picture</button>
+            <button id="github" disabled>GitHub stats</button>
+            <button id="saved-photo" disabled>Saved photo</button>
+            <button id="album-mode" disabled>Album slideshow</button>
+            <p id="display-status" role="status">Connecting to display…</p>
+            <p id="github-stats"></p>
+            <label for="image-file">Your image · JPG, PNG or WebP</label>
+            <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp">
+            <button class="primary" id="send-image" disabled>Send image</button>
+            <button id="send-camera" disabled>Use camera picture</button>
+            <p id="action-status" role="status"></p>
+            <small>Sending an image saves it on the board. Use Saved photo to return to it at any time.</small>
+          </div>
+        </div>
+        <div class="camera-settings" id="display-layout">
+          <label>Screen orientation
+            <select id="display-rotation">
+              <option value="0">Portrait · 240 × 320</option>
+              <option value="90">Landscape · turn screen left</option>
+              <option value="270">Landscape · turn screen right</option>
+            </select>
+          </label>
+          <label>Photo framing
+            <select id="display-fit"><option value="contain">Fit whole photo</option><option value="cover">Fill screen · crop edges</option></select>
+          </label>
+          <label>Crop position · left / right <input id="focus-x" type="range" min="0" max="100" value="50"></label>
+          <label>Crop position · top / bottom <input id="focus-y" type="range" min="0" max="100" value="50"></label>
+        </div>
+        <button id="apply-layout" class="primary" disabled>Apply display settings</button>
+        <p id="layout-status" role="status"></p>
+        <small>Applies to your saved photo and the album. Turn the physical screen to match its orientation. Cropping keeps the source photo intact.</small>
+      </section>
+      <section id="album-section">
+        <h2>Google Photos album</h2>
+        <label for="album-url">Shared album link · accessible without signing in</label>
+        <input id="album-url" type="url" placeholder="https://photos.app.goo.gl/…" maxlength="1024">
+        <label for="album-interval">Seconds per photo</label>
+        <input id="album-interval" type="number" min="15" max="86400" value="60">
+        <button id="save-album" class="primary">Save and start slideshow</button>
+        <div>
+          <button id="previous-photo" disabled>Previous photo</button>
+          <button id="pause-album" disabled>Pause slideshow</button>
+          <button id="next-photo" disabled>Next photo</button>
+        </div>
+        <p id="album-status" role="status">No album configured</p>
+        <small>Pause holds the current photo; Previous and Next still work. Other display modes suspend playback. Returning restores the same photo and remaining time. Runs on the board with this page closed. Uses Google's public album page.</small>
+      </section>
+      <section>
+        <h2>Camera</h2>
+        <div class="camera-settings" id="camera-settings">
+          <label>Resolution
+            <select id="resolution">
+              <option value="QVGA">320 × 240 · fastest</option>
+              <option value="VGA">640 × 480</option>
+              <option value="SVGA" selected>800 × 600 · everyday</option>
+              <option value="XGA">1024 × 768</option>
+              <option value="SXGA">1280 × 1024</option>
+              <option value="UXGA">1600 × 1200</option>
+              <option value="QXGA">2048 × 1536 · 3 MP</option>
+            </select>
+          </label>
+          <label>Image quality
+            <select id="quality">
+              <option value="10">Very high · larger files</option>
+              <option value="12" selected>High</option>
+              <option value="20">Balanced</option>
+              <option value="30">Smaller files</option>
+            </select>
+          </label>
+          <label>Brightness <output id="brightness-value">0</output><input id="brightness" type="range" min="-2" max="2" value="0"></label>
+          <label>Contrast <output id="contrast-value">0</output><input id="contrast" type="range" min="-2" max="2" value="0"></label>
+          <label>Saturation <output id="saturation-value">0</output><input id="saturation" type="range" min="-2" max="2" value="0"></label>
+          <div class="checks">
+            <label><input id="hmirror" type="checkbox"> Mirror</label>
+            <label><input id="vflip" type="checkbox" checked> Flip vertically</label>
+          </div>
+        </div>
+        <button id="apply-camera" class="primary" disabled>Apply settings</button>
+        <button id="reset-camera" disabled>Restore defaults</button>
+        <button id="pause-camera">Start preview</button>
+        <a href="/capture" download="xiao-camera.jpg">Save full-size photo</a>
+        <p id="camera-setting-status" role="status">Loading camera settings…</p>
+        <p><small>Higher resolution adds detail and slows the preview. Settings are saved on the board. The TFT uses 240 × 320 pixels, or 320 × 240 in landscape.</small></p>
+        <img id="camera" alt="Camera image">
+        <p id="status">Camera idle · start preview or take a photo when needed.</p>
+        <small>Preview stops when you choose a display mode or hide this page. The camera releases its capture buffers after 2 seconds without requests.</small>
+      </section>
     </main>
     <script>
       const camera = document.querySelector("#camera");
       const status = document.querySelector("#status");
       let frames = 0;
+      let busy = false;
+      let cameraBusy = false;
+      let cameraReady = false;
+      let cameraDirty = false;
+      let previewPaused = true;
+      let previewSession = null;
+      let cameraAbort = null;
+      let cameraObjectUrl = null;
+      let previewTimer;
+      let displayReady = false;
+      let pendingImage = false;
+      let lastCrc = null;
+      let savedPhotoAvailable = false;
+      let albumConfigured = false;
+      let albumActive = false;
+      let albumPaused = false;
+      let albumPhotos = 0;
+      let albumDirty = false;
+      let layoutDirty = false;
+      let pendingSource = null;
+      const canvas = document.querySelector("#preview");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const actionStatus = document.querySelector("#action-status");
 
-      function nextFrame() {
-        camera.src = `/capture?t=${Date.now()}`;
+      function controls() {
+        document.querySelector("#image-file").disabled = busy || cameraBusy;
+        for (const id of ["test", "github", "send-camera"]) document.getElementById(id).disabled = busy || cameraBusy || !displayReady;
+        document.querySelector("#send-image").disabled = busy || cameraBusy || !displayReady || !pendingImage;
+        document.querySelector("#saved-photo").disabled = busy || cameraBusy || !displayReady || !savedPhotoAvailable;
+        document.querySelector("#album-mode").disabled = busy || cameraBusy || !displayReady || !albumConfigured;
+        for (const id of ["next-photo", "previous-photo"]) document.getElementById(id).disabled = busy || cameraBusy || !albumActive || !albumPhotos;
+        document.querySelector("#pause-album").disabled = busy || cameraBusy || !albumActive;
+        document.querySelector("#pause-album").textContent = albumPaused ? "Resume slideshow" : "Pause slideshow";
+        document.querySelector("#save-album").disabled = busy || cameraBusy || !displayReady;
+        document.querySelector("#apply-layout").disabled = busy || cameraBusy || !displayReady;
+        for (const field of document.querySelectorAll("#display-layout input, #display-layout select")) field.disabled = busy || cameraBusy;
+        for (const id of ["focus-x", "focus-y"]) document.getElementById(id).disabled = busy || cameraBusy || document.querySelector("#display-fit").value !== "cover";
+        for (const id of ["apply-camera", "reset-camera"]) document.getElementById(id).disabled = busy || cameraBusy || !cameraReady;
+        for (const field of document.querySelectorAll("#camera-settings input, #camera-settings select")) field.disabled = cameraBusy;
+      }
+
+      const cameraMessage = document.querySelector("#camera-setting-status");
+      const defaultCamera = { framesize: "SVGA", quality: 12, brightness: 0, contrast: 0, saturation: 0, hmirror: false, vflip: true };
+
+      function cameraValues() {
+        const value = { framesize: document.querySelector("#resolution").value };
+        for (const key of ["quality", "brightness", "contrast", "saturation"]) value[key] = Number(document.getElementById(key).value);
+        for (const key of ["hmirror", "vflip"]) value[key] = document.getElementById(key).checked;
+        return value;
+      }
+
+      function showCameraValues(value) {
+        document.querySelector("#resolution").value = value.framesize;
+        const quality = document.querySelector("#quality");
+        if (![...quality.options].some(option => Number(option.value) === value.quality)) {
+          quality.add(new Option(`Custom JPEG setting (${value.quality})`, String(value.quality)));
+        }
+        for (const key of ["quality", "brightness", "contrast", "saturation"]) document.getElementById(key).value = value[key];
+        for (const key of ["hmirror", "vflip"]) document.getElementById(key).checked = value[key];
+        for (const key of ["brightness", "contrast", "saturation"]) document.getElementById(`${key}-value`).value = value[key];
+      }
+
+      for (const field of document.querySelectorAll("#camera-settings input, #camera-settings select")) {
+        field.addEventListener("input", () => {
+          cameraDirty = true;
+          const output = document.getElementById(`${field.id}-value`);
+          if (output) output.value = field.value;
+          cameraMessage.textContent = "Unsaved changes · press Apply settings.";
+        });
+      }
+
+      async function applyCamera(value) {
+        cameraBusy = true; controls(); cameraMessage.textContent = "Applying and checking a new frame…";
+        try {
+          const response = await checkedFetch("/camera/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+          const applied = await response.json();
+          showCameraValues(applied); cameraDirty = false;
+          cameraMessage.textContent = `Saved · ${applied.width} × ${applied.height}`;
+        } catch (error) { cameraMessage.textContent = `Settings not applied: ${error.message}`; }
+        finally { cameraBusy = false; controls(); scheduleFrame(0); }
+      }
+      document.querySelector("#apply-camera").onclick = () => applyCamera(cameraValues());
+      document.querySelector("#reset-camera").onclick = () => applyCamera(defaultCamera);
+      async function stopPreview(notifyBoard = true) {
+        previewPaused = true; previewSession = null;
+        clearTimeout(previewTimer); cameraAbort?.abort();
+        document.querySelector("#pause-camera").textContent = "Start preview";
+        status.textContent = "Camera preview paused";
+        if (notifyBoard) {
+          try { await fetch("/camera/preview/stop", { method: "POST", keepalive: true }); }
+          catch (_) { /* The board also expires an abandoned preview session. */ }
+        }
+      }
+      document.querySelector("#pause-camera").onclick = async () => {
+        if (!previewPaused) { await stopPreview(); return; }
+        previewPaused = false;
+        document.querySelector("#pause-camera").textContent = "Pause preview";
+        try {
+          const value = await (await checkedFetch("/camera/preview/start", { method: "POST" })).json();
+          if (previewPaused || document.hidden) { await stopPreview(); return; }
+          previewSession = value.session; scheduleFrame(0);
+        } catch (error) { await stopPreview(false); status.textContent = error.message; }
+      };
+      document.addEventListener("visibilitychange", () => { if (document.hidden && !previewPaused) stopPreview(); });
+      window.addEventListener("pagehide", () => { if (!previewPaused) stopPreview(); });
+
+      async function checkedFetch(path, options = {}) {
+        const response = await fetch(path, { ...options, signal: AbortSignal.timeout(20000) });
+        if (!response.ok) throw new Error(await response.text());
+        return response;
+      }
+
+      function fitImage(image, width, height) {
+        const scale = Math.min(1, 640 / width, 640 / height, Math.sqrt(76800 / (width * height)));
+        pendingSource = document.createElement("canvas");
+        pendingSource.width = Math.max(1, Math.floor(width * scale));
+        pendingSource.height = Math.max(1, Math.floor(height * scale));
+        pendingSource.getContext("2d").drawImage(image, 0, 0, pendingSource.width, pendingSource.height);
+        pendingImage = true;
+        renderPending();
+        controls();
+      }
+
+      function layoutValues() {
+        return { rotation: Number(document.querySelector("#display-rotation").value), fit: document.querySelector("#display-fit").value,
+          focus_x: Number(document.querySelector("#focus-x").value), focus_y: Number(document.querySelector("#focus-y").value) };
+      }
+      function showLayout(value) {
+        document.querySelector("#display-rotation").value = value.rotation;
+        document.querySelector("#display-fit").value = value.fit;
+        document.querySelector("#focus-x").value = value.focus_x;
+        document.querySelector("#focus-y").value = value.focus_y;
+      }
+      function canvasSize(width, height) {
+        if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+        canvas.style.width = `${width * .75}px`; canvas.style.height = `${height * .75}px`;
+      }
+      function renderPending() {
+        if (!pendingSource) return;
+        const value = layoutValues();
+        const [tw, th] = value.rotation === 0 ? [240, 320] : [320, 240];
+        canvasSize(tw, th);
+        let sx = 0, sy = 0, sw = pendingSource.width, sh = pendingSource.height, dw = tw, dh = th;
+        if (value.fit === "cover") {
+          if (sw * th > sh * tw) { const crop = Math.max(1, Math.floor(sh * tw / th)); sx = Math.floor((sw - crop) * value.focus_x / 100); sw = crop; }
+          else { const crop = Math.max(1, Math.floor(sw * th / tw)); sy = Math.floor((sh - crop) * value.focus_y / 100); sh = crop; }
+        } else if (sw * th > sh * tw) dh = Math.max(1, Math.floor(sh * tw / sw));
+        else dw = Math.max(1, Math.floor(sw * th / sh));
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, tw, th);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(pendingSource, sx, sy, sw, sh, Math.floor((tw - dw) / 2), Math.floor((th - dh) / 2), dw, dh);
+        document.querySelector("#preview-label").textContent = "Preview · ready to send";
+      }
+      for (const field of document.querySelectorAll("#display-layout input, #display-layout select")) {
+        field.oninput = () => { layoutDirty = true; renderPending(); controls(); document.querySelector("#layout-status").textContent = "Unsaved display settings · press Apply."; };
+      }
+      async function saveLayout() {
+        const result = await checkedFetch("/display/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(layoutValues()) });
+        showLayout(await result.json()); layoutDirty = false; lastCrc = null; renderPending();
+        document.querySelector("#layout-status").textContent = "Display settings saved.";
+      }
+      document.querySelector("#apply-layout").onclick = async () => {
+        busy = true; controls();
+        try { await saveLayout(); await previewFrame(); }
+        catch (error) { document.querySelector("#layout-status").textContent = error.message; }
+        finally { busy = false; controls(); }
+      };
+
+      function rgb565() {
+        const rgba = pendingSource.getContext("2d").getImageData(0, 0, pendingSource.width, pendingSource.height).data;
+        const bytes = new Uint8Array(pendingSource.width * pendingSource.height * 2);
+        for (let i = 0; i < bytes.length / 2; i++) {
+          const color = ((rgba[i * 4] & 248) << 8) | ((rgba[i * 4 + 1] & 252) << 3) | (rgba[i * 4 + 2] >> 3);
+          bytes[i * 2] = color >> 8;
+          bytes[i * 2 + 1] = color & 255;
+        }
+        return bytes;
+      }
+
+      async function previewFrame() {
+        const response = await checkedFetch("/display/frame");
+        const width = Number(response.headers.get("X-Image-Width") || 240);
+        const height = Number(response.headers.get("X-Image-Height") || 320);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.length !== 153600 || !((width === 240 && height === 320) || (width === 320 && height === 240))) throw new Error("Incomplete display preview");
+        const pixels = ctx.createImageData(width, height);
+        for (let i = 0; i < width * height; i++) {
+          const color = (bytes[i * 2] << 8) | bytes[i * 2 + 1];
+          pixels.data[i * 4] = Math.round(((color >> 11) & 31) * 255 / 31);
+          pixels.data[i * 4 + 1] = Math.round(((color >> 5) & 63) * 255 / 63);
+          pixels.data[i * 4 + 2] = Math.round((color & 31) * 255 / 31);
+          pixels.data[i * 4 + 3] = 255;
+        }
+        if (!pendingImage) {
+          canvasSize(width, height);
+          ctx.putImageData(pixels, 0, 0);
+          document.querySelector("#preview-label").textContent = "Last sent frame";
+        }
+      }
+
+      async function action(path, body, headers = {}) {
+        busy = true; controls(); actionStatus.textContent = "Sending…";
+        try {
+          await stopPreview();
+          if (path === "/display/image") await saveLayout();
+          await checkedFetch(path, { method: "POST", body,
+            headers: body ? { "Content-Type": "application/octet-stream", ...headers } : {} });
+          pendingImage = false;
+          pendingSource = null;
+          actionStatus.textContent = "Sent to display.";
+          await previewFrame();
+          lastCrc = null;
+        } catch (error) { actionStatus.textContent = error.message; }
+        finally { busy = false; controls(); }
+      }
+
+      document.querySelector("#test").onclick = () => action("/display/test");
+      document.querySelector("#github").onclick = () => action("/display/github");
+      document.querySelector("#saved-photo").onclick = () => action("/display/restore");
+      document.querySelector("#album-mode").onclick = () => action("/display/album");
+      for (const [id, path] of [["next-photo", "/album/next"], ["previous-photo", "/album/previous"], ["pause-album", null]]) {
+        document.getElementById(id).onclick = async () => {
+          try {
+            await checkedFetch(path || (albumPaused ? "/album/resume" : "/album/pause"), { method: "POST" });
+            if (!path) { albumPaused = !albumPaused; controls(); }
+          } catch (error) { document.querySelector("#album-status").textContent = error.message; }
+        };
+      }
+      for (const id of ["album-url", "album-interval"]) document.getElementById(id).oninput = () => { albumDirty = true; };
+      document.querySelector("#save-album").onclick = async () => {
+        busy = true; controls();
+        try {
+          await stopPreview();
+          await checkedFetch("/album/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: document.querySelector("#album-url").value.trim(), interval_seconds: Number(document.querySelector("#album-interval").value) }) });
+          albumDirty = false;
+          document.querySelector("#album-status").textContent = "Album saved · loading photos…";
+        } catch (error) { document.querySelector("#album-status").textContent = error.message; }
+        finally { busy = false; controls(); }
+      };
+      function sendPending() {
+        if (!pendingSource) return;
+        return action("/display/image", rgb565(), { "X-Image-Width": String(pendingSource.width), "X-Image-Height": String(pendingSource.height) });
+      }
+      document.querySelector("#send-image").onclick = sendPending;
+      document.querySelector("#send-camera").onclick = async () => {
+        busy = true; controls();
+        try {
+          await stopPreview();
+          const photo = await createImageBitmap(await (await checkedFetch("/capture")).blob());
+          fitImage(photo, photo.width, photo.height); photo.close();
+          await sendPending();
+        } catch (error) { actionStatus.textContent = error.message; }
+        finally { busy = false; controls(); }
+      };
+      document.querySelector("#image-file").onchange = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+          if (file.size > 20 * 1024 * 1024) throw new Error("Choose an image smaller than 20 MB.");
+          const image = await createImageBitmap(file);
+          fitImage(image, image.width, image.height);
+          image.close();
+          actionStatus.textContent = "Image prepared. Press Send image to display it.";
+        } catch (error) { actionStatus.textContent = error.message; }
+      };
+
+      async function pollStatus() {
+        try {
+          if (busy || cameraBusy) return;
+          const state = await (await checkedFetch("/status")).json();
+          cameraReady = Boolean(state.camera_ready);
+          if (previewSession !== null && !state.camera?.preview_enabled) await stopPreview(false);
+          if (state.camera?.settings && !cameraDirty && !cameraBusy) {
+            showCameraValues(state.camera.settings);
+            cameraMessage.textContent = state.camera.error ? `Camera: ${state.camera.error}` : `Current · ${state.camera.settings.width} × ${state.camera.settings.height}`;
+          }
+          displayReady = Boolean(state.display?.ready);
+          if (state.display?.layout && !layoutDirty && !busy) { showLayout(state.display.layout); renderPending(); }
+          savedPhotoAvailable = Boolean(state.display?.saved_photo_available);
+          albumConfigured = Boolean(state.album?.configured);
+          albumActive = state.display?.mode === "album";
+          if (state.album) {
+            const a = state.album;
+            albumPaused = Boolean(a.paused); albumPhotos = a.photos;
+            if (!albumDirty) {
+              document.querySelector("#album-url").value = a.url || "";
+              document.querySelector("#album-interval").value = a.interval_seconds;
+            }
+            document.querySelector("#album-status").textContent = a.last_error ? `Album: ${a.last_error}` : !a.configured ? "No album configured"
+              : !a.photos ? (a.paused ? "Paused · resume to load album" : "Loading album…")
+              : `${!albumActive ? "Suspended · other display mode" : albumPaused ? "Paused" : "Playing"} · photo ${a.current} of ${a.photos}${a.loading ? " · loading…" : ""} · ${Math.ceil(a.remaining_ms / 1000)}s left${a.partial_album ? " · first page only" : ""}`;
+          }
+          document.querySelector("#display-status").textContent = displayReady
+            ? `Display ready · ${state.display.mode}`
+            : state.display?.error === "wiring_not_configured"
+              ? "Display wiring is not configured yet." : `Display unavailable: ${state.display?.error || "firmware update required"}`;
+          const data = state.github?.data;
+          document.querySelector("#github-stats").textContent = data
+            ? `@${data.login} · ${data.commits} commits · ${data.pull_requests} PR · ${data.contributions} contributions${state.github.last_error ? " · cached" : ""}`
+            : state.github?.configured ? `GitHub: ${state.github.last_error || "waiting for data"}` : "GitHub: run github-setup on your computer.";
+          if (!busy && !pendingImage && state.display?.frame_crc32 && lastCrc !== state.display.frame_crc32) {
+            await previewFrame(); lastCrc = state.display.frame_crc32;
+          }
+        } catch (error) {
+          cameraReady = false;
+          displayReady = false;
+          document.querySelector("#display-status").textContent = `Connection unavailable: ${error.message}`;
+        } finally { controls(); setTimeout(pollStatus, 5000); }
+      }
+
+      async function nextFrame() {
+        if (previewPaused || previewSession === null || document.hidden) return;
+        if (busy || cameraBusy) { scheduleFrame(500); return; }
+        const session = previewSession;
+        cameraAbort = new AbortController();
+        try {
+          const response = await fetch(`/capture?preview=${session}&t=${Date.now()}`, { signal: cameraAbort.signal });
+          if (!response.ok) {
+            if (response.status === 409) { await stopPreview(false); return; }
+            throw new Error(await response.text());
+          }
+          const blob = await response.blob();
+          if (previewPaused || session !== previewSession) return;
+          if (cameraObjectUrl) URL.revokeObjectURL(cameraObjectUrl);
+          cameraObjectUrl = URL.createObjectURL(blob); camera.src = cameraObjectUrl;
+        } catch (error) {
+          if (error.name !== "AbortError" && !previewPaused) { status.textContent = `Camera: ${error.message}`; scheduleFrame(1000); }
+        }
+      }
+
+      function scheduleFrame(delay) {
+        clearTimeout(previewTimer);
+        if (!previewPaused && !document.hidden) previewTimer = setTimeout(nextFrame, delay);
       }
 
       camera.addEventListener("load", () => {
         frames += 1;
-        status.textContent = `Camera online · frame ${frames}`;
-        setTimeout(nextFrame, 350);
+        status.textContent = previewPaused ? "Preview paused" : `Camera online · ${camera.naturalWidth} × ${camera.naturalHeight} · frame ${frames}`;
+        scheduleFrame(350);
       });
 
       camera.addEventListener("error", () => {
-        status.textContent = "Retrying camera…";
-        setTimeout(nextFrame, 1000);
+        status.textContent = previewPaused ? "Preview paused" : "Retrying camera…";
+        scheduleFrame(1000);
       });
 
-      nextFrame();
+      pollStatus();
     </script>
   </body>
 </html>
