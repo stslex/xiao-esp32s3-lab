@@ -1,0 +1,17 @@
+query Activity($login: String!) {
+  user(login: $login) {
+    login
+    contributionsCollection {
+      startedAt
+      endedAt
+      totalCommitContributions
+      totalPullRequestContributions
+      contributionCalendar {
+        totalContributions
+        weeks {
+          contributionDays { weekday contributionCount }
+        }
+      }
+    }
+  }
+}
