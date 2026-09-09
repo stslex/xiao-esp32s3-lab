@@ -4,7 +4,7 @@
     "command": "/bin/zsh",
     "args": [
       "-lc",
-      "source .esp/export-esp.sh && export PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\" && cargo build"
+      "source .esp/export-esp.sh && export PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\" && sh tools/build.sh"
     ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "save": "all",
@@ -16,7 +16,7 @@
     "command": "/bin/zsh",
     "args": [
       "-lc",
-      "source .esp/export-esp.sh && export PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\" && cargo run"
+      "source .esp/export-esp.sh && export PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\" && sh tools/build.sh && espflash flash --monitor target/xtensa-esp32s3-espidf/debug/xiao-esp32s3-camera"
     ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "save": "all",
@@ -26,7 +26,10 @@
   {
     "label": "Rust: Serial Monitor",
     "command": "/bin/zsh",
-    "args": ["-lc", "export PATH=\"/opt/homebrew/bin:$PATH\" && espflash monitor"],
+    "args": [
+      "-lc",
+      "export PATH=\"/opt/homebrew/bin:$PATH\" && espflash monitor"
+    ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "save": "all",
     "use_new_terminal": true,
@@ -42,6 +45,72 @@
     "cwd": "$ZED_WORKTREE_ROOT",
     "save": "all",
     "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Camera: USB Status",
+    "command": "python3",
+    "args": [
+      "tools/camera.py",
+      "status"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Camera: USB Verify",
+    "command": "python3",
+    "args": [
+      "tools/camera.py",
+      "verify"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Camera: Wi-Fi Setup",
+    "command": "python3",
+    "args": [
+      "tools/camera.py",
+      "wifi-setup"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Display: Test picture",
+    "command": "python3",
+    "args": [
+      "tools/camera.py",
+      "display-test"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Display: GitHub activity",
+    "command": "python3",
+    "args": [
+      "tools/camera.py",
+      "display-github"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Display: GitHub setup",
+    "command": "python3",
+    "args": [
+      "tools/camera.py",
+      "github-setup"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
     "allow_concurrent_runs": false
   }
 ]
